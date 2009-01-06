@@ -301,12 +301,13 @@ module ActiveRecord #:nodoc:
         # Clears old revisions if a limit is set with the :limit option in <tt>acts_as_versioned</tt>.
         # Override this method to set your own criteria for clearing old versions.
         def clear_old_versions
-          return if self.class.max_version_limit == 0
+          return true if self.class.max_version_limit == 0
           excess_baggage = send(self.class.version_column).to_i - self.class.max_version_limit
           if excess_baggage > 0
             sql = "DELETE FROM #{self.class.versioned_table_name} WHERE version <= #{excess_baggage} AND #{self.class.versioned_foreign_key} = #{self.id}"
             self.class.versioned_class.connection.execute sql
           end
+          true
         end
 
         # Reverts a model to a given version.  Takes either a version number or an instance of the versioned model
