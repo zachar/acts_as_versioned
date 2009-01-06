@@ -463,13 +463,13 @@ module ActiveRecord #:nodoc:
           end
 
           # Rake migration task to create the versioned table using options passed to acts_as_versioned
-          def create_versioned_table(create_table_options = {})
+          def create_versioned_table(migrator = self.connection, create_table_options = {})
             # create version column in main table if it does not exist
             if !self.content_columns.find { |c| %w(version lock_version).include? c.name }
-              self.connection.add_column table_name, :version, :integer
+              migrator.add_column table_name, :version, :integer
             end
 
-            self.connection.create_table(versioned_table_name, create_table_options) do |t|
+            migrator.create_table(versioned_table_name, create_table_options) do |t|
               t.column versioned_foreign_key, :integer
               t.column :version, :integer
             end
@@ -477,29 +477,31 @@ module ActiveRecord #:nodoc:
             updated_col = nil
             self.versioned_columns.each do |col| 
               updated_col = col if !updated_col && %(updated_at updated_on).include?(col.name)
-              self.connection.add_column versioned_table_name, col.name, col.type, 
-                :limit => col.limit, 
-                :default => col.default,
-                :scale => col.scale,
+              migrator.add_column versioned_table_name, col.name, col.type, 
+                :limit     => col.limit,
+                :default   => col.default,
+                :scale     => col.scale,
                 :precision => col.precision
             end
 
             if type_col = self.columns_hash[inheritance_column]
-              self.connection.add_column versioned_table_name, versioned_inheritance_column, type_col.type, 
-                :limit => type_col.limit, 
-                :default => type_col.default,
-                :scale => type_col.scale,
+              migrator.add_column versioned_table_name, versioned_inheritance_column, type_col.type, 
+                :limit     => type_col.limit,
+                :default   => type_col.default,
+                :scale     => type_col.scale,
                 :precision => type_col.precision
             end
 
             if updated_col.nil?
-              self.connection.add_column versioned_table_name, :updated_at, :timestamp
+              migrator.add_column versioned_table_name, :updated_at, :timestamp
             end
+
+            migrator.create_index versioned_table_name, versioned_foreign_key
           end
 
           # Rake migration task to drop the versioned table
-          def drop_versioned_table
-            self.connection.drop_table versioned_table_name
+          def drop_versioned_table(migrator = self.connection)
+            migrator.drop_table versioned_table_name
           end
 
           # Executes the block with the versioning callbacks disabled.
