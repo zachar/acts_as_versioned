@@ -271,7 +271,7 @@ module ActiveRecord #:nodoc:
           versioned_class.cattr_accessor :original_class
           versioned_class.original_class = self
           versioned_class.set_table_name versioned_table_name
-          versioned_class.belongs_to self.to_s.demodulize.underscore.to_sym, 
+          versioned_class.belongs_to :original, 
             :class_name  => "::#{self.to_s}", 
             :foreign_key => versioned_foreign_key
           versioned_class.send :include, options[:extend]         if options[:extend].is_a?(Module)
