@@ -180,7 +180,7 @@ module ActiveRecord #:nodoc:
           self.version_sequence_name        = options[:sequence_name]
           self.max_version_limit            = options[:limit].to_i
           self.version_condition            = options[:if] || true
-          self.non_versioned_columns        = [self.primary_key, inheritance_column, self.version_column, 'lock_version', versioned_inheritance_column, 'created_at', 'created_on'] + options[:non_versioned_columns].to_a.map(&:to_s)
+          self.non_versioned_columns        = [self.primary_key, inheritance_column, self.version_column, 'lock_version', versioned_inheritance_column] + options[:non_versioned_columns].to_a.map(&:to_s)
           self.version_association_options  = {
                                                 :class_name  => "#{self.to_s}::#{versioned_class_name}",
                                                 :foreign_key => versioned_foreign_key,
@@ -257,8 +257,6 @@ module ActiveRecord #:nodoc:
             :foreign_key => versioned_foreign_key
           versioned_class.send :include, options[:extend]         if options[:extend].is_a?(Module)
           versioned_class.set_sequence_name version_sequence_name if version_sequence_name
-          
-          create_versioned_table
         end
       end
 
@@ -412,17 +410,15 @@ module ActiveRecord #:nodoc:
               self.reset_column_information
             end
 
-            return if connection.tables.include?(versioned_table_name.to_s)
+            return if connection.table_exists?(versioned_table_name)
             
             migrator.create_table(versioned_table_name, create_table_options) do |t|
               t.column versioned_foreign_key, :integer
               t.column version_column, :integer
             end
 
-            updated_col = nil
-            self.versioned_columns.each do |col| 
-              updated_col = col if !updated_col && %(updated_at updated_on).include?(col.name)
-              migrator.add_column versioned_table_name, col.name, col.type, 
+            self.versioned_columns.each do |col|
+              self.connection.add_column versioned_table_name, col.name, col.type,
                 :limit     => col.limit, 
                 :default   => col.default,
                 :scale     => col.scale,
@@ -437,11 +433,7 @@ module ActiveRecord #:nodoc:
                 :precision => type_col.precision
             end
 
-            if updated_col.nil?
-              migrator.add_column versioned_table_name, :updated_at, :timestamp
-            end
-            
-            migrator.create_index versioned_table_name, versioned_foreign_key
+            self.connection.add_index versioned_table_name, versioned_foreign_key
           end
 
           # Rake migration task to drop the versioned table
@@ -480,9 +472,11 @@ module ActiveRecord #:nodoc:
           def without_locking(&block)
             current = ActiveRecord::Base.lock_optimistically
             ActiveRecord::Base.lock_optimistically = false if current
-            result = block.call
-            ActiveRecord::Base.lock_optimistically = true if current
-            result
+            begin
+              block.call
+            ensure
+              ActiveRecord::Base.lock_optimistically = true if current
+            end
           end
         end
       end
