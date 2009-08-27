@@ -514,7 +514,7 @@ module ActiveRecord #:nodoc:
               migrator.add_column versioned_table_name, :updated_at, :timestamp
             end
 
-            migrator.create_index versioned_table_name, versioned_foreign_key
+            migrator.add_index versioned_table_name, versioned_foreign_key
           end
 
           # Rake migration task to drop the versioned table
