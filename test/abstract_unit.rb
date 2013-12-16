@@ -1,28 +1,16 @@
-$:.unshift(File.dirname(__FILE__) + '/../../../rails/activesupport/lib')
-$:.unshift(File.dirname(__FILE__) + '/../../../rails/activerecord/lib')
 $:.unshift(File.dirname(__FILE__) + '/../lib')
+
+require 'rubygems'
 require 'test/unit'
-begin
-  require 'active_support'
-  require 'active_record'
-  require 'active_record/fixtures'
-rescue LoadError
-  require 'rubygems'
-  retry
-end
-
-begin
-  require 'ruby-debug'
-  Debugger.start
-rescue LoadError
-end
-
-require 'acts_as_versioned'
+require 'active_record'
+require 'active_record/fixtures'
+require 'active_support/binding_of_caller'
+require 'active_support/breakpoint'
+require "#{File.dirname(__FILE__)}/../init"
 
 config = YAML::load(IO.read(File.dirname(__FILE__) + '/database.yml'))
 ActiveRecord::Base.logger = Logger.new(File.dirname(__FILE__) + "/debug.log")
-ActiveRecord::Base.configurations = {'test' => config[ENV['DB'] || 'sqlite3']}
-ActiveRecord::Base.establish_connection(ActiveRecord::Base.configurations['test'])
+ActiveRecord::Base.establish_connection(config[ENV['DB'] || 'sqlite'])
 
 load(File.dirname(__FILE__) + "/schema.rb")
 
@@ -34,18 +22,23 @@ if ENV['DB'] == 'postgresql'
   ActiveRecord::Base.connection.execute "ALTER TABLE widget_versions ADD COLUMN id INTEGER PRIMARY KEY DEFAULT nextval('widgets_seq');"
 end
 
-ActiveSupport::TestCase.class_eval do
-  include ActiveRecord::TestFixtures
+Test::Unit::TestCase.fixture_path = File.dirname(__FILE__) + "/fixtures/"
+$LOAD_PATH.unshift(Test::Unit::TestCase.fixture_path)
 
-  self.fixture_path = File.dirname(__FILE__) + "/fixtures/"
+class Test::Unit::TestCase #:nodoc:
+  def create_fixtures(*table_names)
+    if block_given?
+      Fixtures.create_fixtures(Test::Unit::TestCase.fixture_path, table_names) { yield }
+    else
+      Fixtures.create_fixtures(Test::Unit::TestCase.fixture_path, table_names)
+    end
+  end
 
   # Turn off transactional fixtures if you're working with MyISAM tables in MySQL
   self.use_transactional_fixtures = true
-
+  
   # Instantiated fixtures are slow, but give you @david where you otherwise would need people(:david)
   self.use_instantiated_fixtures  = false
 
   # Add more helper methods to be used by all tests here...
 end
-
-$:.unshift(ActiveSupport::TestCase.fixture_path)
